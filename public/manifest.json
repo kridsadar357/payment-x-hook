@@ -1,0 +1,9 @@
+{
+  "name": "pwa-dashboard",
+  "short_name": "pwa-dashboard",
+  "description": "Modern PWA dashboard",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#07080d",
+  "theme_color": "#07080d"
+}
