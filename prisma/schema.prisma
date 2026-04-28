@@ -1,0 +1,39 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum PaymentSessionStatus {
+  pending
+  paid
+  expired
+  cancelled
+
+  @@map("payment_session_status")
+}
+
+/// เซสชันชำระเงิน (PromptPay / SMS notify)
+model PaymentSession {
+  id            String               @id @map("id")
+  amount        Decimal              @db.Decimal(14, 2)
+  status        PaymentSessionStatus @default(pending) @map("status")
+  createdAt     DateTime             @default(now()) @map("created_at")
+  updatedAt    DateTime             @default(now()) @updatedAt @map("updated_at")
+  paidAt       DateTime?            @map("paid_at")
+  /// เวลาที่อ่านได้จากข้อความ SMS (ธนาคาร)
+  smsMatchedAt  DateTime?            @map("sms_matched_at")
+  /// ข้อความ SMS ต้นฉบับ (ตัดความยาวเพื่อ audit)
+  smsRawSnippet String?              @map("sms_raw_snippet") @db.VarChar(2000)
+  /// คีย์คงที่สำหรับ iOS Shortcut / webhook แบบไม่ส่ง sessionId (เช่น ev/2) — ตรงกับ path /api/payments/notify/ev/2
+  notifySlug    String?              @map("notify_slug") @db.VarChar(191)
+
+  @@index([createdAt])
+  @@index([status])
+  @@index([paidAt])
+  @@index([notifySlug, status])
+  @@map("payment_sessions")
+}
