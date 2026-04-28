@@ -1,8 +1,5 @@
 import { randomBytes } from "crypto";
-import {
-  PaymentSessionStatus,
-  Prisma,
-} from "../../node_modules/.prisma/client/index.js";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 export type PaymentSession = {
@@ -11,6 +8,10 @@ export type PaymentSession = {
 };
 
 const TTL_MS = 15 * 60 * 1000;
+const STATUS_PENDING = "pending";
+const STATUS_PAID = "paid";
+const STATUS_EXPIRED = "expired";
+const STATUS_CANCELLED = "cancelled";
 
 function isExpiredByTtl(createdAt: Date): boolean {
   return Date.now() - createdAt.getTime() > TTL_MS;
@@ -25,7 +26,7 @@ export async function createPaymentSession(
     data: {
       id: sessionId,
       amount,
-      status: PaymentSessionStatus.pending,
+      status: STATUS_PENDING,
       ...(notifySlug ? { notifySlug } : {}),
     },
   });
@@ -41,7 +42,7 @@ export async function findLatestPendingSessionIdForNotifySlug(
   const rows = await prisma.$queryRaw<{ id: string }[]>(Prisma.sql`
     SELECT id FROM payment_sessions
     WHERE notify_slug = ${notifySlug}
-      AND status = ${PaymentSessionStatus.pending}::payment_session_status
+      AND status = ${STATUS_PENDING}::payment_session_status
       AND created_at >= ${since}
     ORDER BY created_at DESC
     LIMIT 1
@@ -60,7 +61,7 @@ export async function getSessionStateForNotify(sessionId: string): Promise<Notif
   const row = await prisma.paymentSession.findUnique({ where: { id: sessionId } });
   if (!row) return { kind: "missing" };
 
-  if (row.status === PaymentSessionStatus.paid) {
+  if (row.status === STATUS_PAID) {
     return {
       kind: "paid",
       amount: Number(row.amount),
@@ -70,14 +71,14 @@ export async function getSessionStateForNotify(sessionId: string): Promise<Notif
     };
   }
 
-  if (row.status === PaymentSessionStatus.expired || row.status === PaymentSessionStatus.cancelled) {
+  if (row.status === STATUS_EXPIRED || row.status === STATUS_CANCELLED) {
     return { kind: "expired" };
   }
 
-  if (row.status === PaymentSessionStatus.pending && isExpiredByTtl(row.createdAt)) {
+  if (row.status === STATUS_PENDING && isExpiredByTtl(row.createdAt)) {
     await prisma.paymentSession.update({
       where: { id: sessionId },
-      data: { status: PaymentSessionStatus.expired },
+      data: { status: STATUS_EXPIRED },
     });
     return { kind: "expired" };
   }
@@ -108,9 +109,9 @@ export async function markSessionPaidFromSms(
   const now = new Date();
 
   const updated = await prisma.paymentSession.updateMany({
-    where: { id: sessionId, status: PaymentSessionStatus.pending },
+    where: { id: sessionId, status: STATUS_PENDING },
     data: {
-      status: PaymentSessionStatus.paid,
+      status: STATUS_PAID,
       paidAt: now,
       smsMatchedAt: opts.smsOccurredAt,
       smsRawSnippet: snippet,
@@ -120,6 +121,6 @@ export async function markSessionPaidFromSms(
   if (updated.count === 1) return "updated";
 
   const row = await prisma.paymentSession.findUnique({ where: { id: sessionId } });
-  if (row?.status === PaymentSessionStatus.paid) return "already_paid";
+  if (row?.status === STATUS_PAID) return "already_paid";
   return "not_pending";
 }
