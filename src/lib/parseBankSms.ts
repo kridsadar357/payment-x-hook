@@ -12,6 +12,20 @@ export type ParsedBankSms = {
   rawTime: string;
 };
 
+const THAI_UTC_OFFSET_MINUTES = 7 * 60;
+
+/** แปลงเวลา local ไทย (ICT, UTC+7) เป็น UTC instant เพื่อให้เทียบกับ createdAt ได้ตรงบนเซิร์ฟเวอร์ UTC */
+function toUtcFromThaiLocal(
+  year: number,
+  monthIndex: number,
+  day: number,
+  hour: number,
+  minute: number,
+): Date {
+  const utcMs = Date.UTC(year, monthIndex, day, hour, minute, 0, 0) - THAI_UTC_OFFSET_MINUTES * 60 * 1000;
+  return new Date(utcMs);
+}
+
 /** DD/MM/YY or DD/MM/YYYY at line start; YY/YYYY = Buddhist era in bank SMS. */
 export function parseThaiBankSmsMessage(text: string): ParsedBankSms | null {
   const trimmed = text.trim();
@@ -22,14 +36,12 @@ export function parseThaiBankSmsMessage(text: string): ParsedBankSms | null {
   const y = Number(yRaw);
   const beYear = y < 100 ? 2500 + y : y;
   const ceYear = beYear - 543;
-  const occurredAt = new Date(
+  const occurredAt = toUtcFromThaiLocal(
     ceYear,
     Number(moStr) - 1,
     Number(dStr),
     Number(hStr),
     Number(miStr),
-    0,
-    0,
   );
   if (Number.isNaN(occurredAt.getTime())) return null;
 
