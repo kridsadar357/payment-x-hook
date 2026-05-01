@@ -99,6 +99,29 @@ export async function getPaymentSession(
   return { amount: state.amount, createdAt: state.createdAt };
 }
 
+export type SessionStatusForClient =
+  | { kind: "missing" }
+  | { kind: "pending"; amount: number; createdAt: number }
+  | { kind: "paid"; amount: number; createdAt: number; paidAt: Date | null; smsMatchedAt: Date | null }
+  | { kind: "expired_or_cancelled" };
+
+/** สำหรับหน้า client polling สถานะหลังสร้าง QR */
+export async function getSessionStatusForClient(sessionId: string): Promise<SessionStatusForClient> {
+  const state = await getSessionStateForNotify(sessionId);
+  if (state.kind === "missing") return { kind: "missing" };
+  if (state.kind === "expired") return { kind: "expired_or_cancelled" };
+  if (state.kind === "pending") {
+    return { kind: "pending", amount: state.amount, createdAt: state.createdAt };
+  }
+  return {
+    kind: "paid",
+    amount: state.amount,
+    createdAt: state.createdAt,
+    paidAt: state.paidAt,
+    smsMatchedAt: state.smsMatchedAt,
+  };
+}
+
 const SMS_SNIPPET_MAX = 2000;
 
 export async function markSessionPaidFromSms(

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { executePaymentNotify } from "@/lib/executePaymentNotify";
 import { normalizeNotifySlug } from "@/lib/notifySlug";
 import { findLatestPendingSessionIdForNotifySlug } from "@/lib/paymentSessions";
+import { verifyWebhookSecret } from "@/lib/webhookAuth";
 
 /**
  * POST /api/payments/notify/ev/2
@@ -12,6 +13,9 @@ export async function POST(
   req: Request,
   context: { params: { slug: string[] } },
 ) {
+  const authError = verifyWebhookSecret(req);
+  if (authError) return authError;
+
   const segments = context.params.slug;
   const notifySlug = normalizeNotifySlug(segments?.join("/") ?? "");
   if (!notifySlug) {

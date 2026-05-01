@@ -203,6 +203,37 @@ function PaymentsPageInner() {
     resetToSelectAmount();
   }, [transferExpired, resetToSelectAmount]);
 
+  /** Poll session status เพื่ออัปเดตหน้าเป็น "ชำระสำเร็จ" อัตโนมัติหลัง webhook notify */
+  useEffect(() => {
+    if (!paySessionId || paidSuccess || lockedAmount === null) return;
+
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const res = await fetch(`/api/payments/session/${encodeURIComponent(paySessionId)}/status`, {
+          cache: "no-store",
+        });
+        if (!res.ok) return;
+        const data = (await res.json()) as { status?: string };
+        if (cancelled) return;
+        if (data.status === "paid") {
+          markPaidSuccess();
+        } else if (data.status === "expired_or_cancelled") {
+          resetToSelectAmount();
+        }
+      } catch {
+        // Ignore transient polling failures; next tick will retry.
+      }
+    };
+
+    void poll();
+    const id = window.setInterval(() => void poll(), 2500);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [paySessionId, paidSuccess, lockedAmount, markPaidSuccess, resetToSelectAmount]);
+
   const handleConfirm = useCallback(async () => {
     if (numpadRaw === "" || numpadRaw === ".") return;
     const parsed = parseFloat(numpadRaw);

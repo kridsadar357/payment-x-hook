@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { executePaymentNotify } from "@/lib/executePaymentNotify";
+import { verifyWebhookSecret } from "@/lib/webhookAuth";
 
 export async function POST(req: Request) {
+  const authError = verifyWebhookSecret(req);
+  if (authError) return authError;
+
   let body: { sessionId?: string; message?: string };
   try {
     body = await req.json();
