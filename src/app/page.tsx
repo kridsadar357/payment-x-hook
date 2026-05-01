@@ -2,6 +2,7 @@
 
 import { Kanit } from "next/font/google";
 import Image from "next/image";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { normalizeNotifySlug } from "@/lib/notifySlug";
@@ -434,9 +435,17 @@ function PaymentsPageInner() {
             "sm:max-w-[min(28rem,calc(100vw-2rem-env(safe-area-inset-left)-env(safe-area-inset-right)))] sm:rounded-3xl sm:p-5"
           }
         >
-        <h1 className="text-xl font-bold tracking-tight text-white sm:text-2xl">
-          {paidSuccess ? "สำเร็จ" : "ชำระเงิน"}
-        </h1>
+        <div className="flex items-start justify-between gap-3">
+          <h1 className="text-xl font-bold tracking-tight text-white sm:text-2xl">
+            {paidSuccess ? "สำเร็จ" : "ชำระเงิน"}
+          </h1>
+          <Link
+            href="/transactions"
+            className="rounded-lg border border-white/15 bg-white/5 px-2.5 py-1.5 text-[10px] font-semibold text-zinc-300 transition hover:bg-white/10 hover:text-white"
+          >
+            รายการจ่าย
+          </Link>
+        </div>
         <p
           className={
             "mt-1 max-w-sm text-xs leading-snug " +
