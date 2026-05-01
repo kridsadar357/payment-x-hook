@@ -99,6 +99,20 @@ export async function getPaymentSession(
   return { amount: state.amount, createdAt: state.createdAt };
 }
 
+export async function cancelPaymentSession(
+  sessionId: string,
+): Promise<"cancelled" | "already_final" | "missing"> {
+  const updated = await prisma.paymentSession.updateMany({
+    where: { id: sessionId, status: STATUS_PENDING },
+    data: { status: STATUS_CANCELLED },
+  });
+  if (updated.count === 1) return "cancelled";
+
+  const row = await prisma.paymentSession.findUnique({ where: { id: sessionId } });
+  if (!row) return "missing";
+  return "already_final";
+}
+
 export type SessionStatusForClient =
   | { kind: "missing" }
   | { kind: "pending"; amount: number; createdAt: number }

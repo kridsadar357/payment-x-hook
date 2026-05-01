@@ -3,6 +3,7 @@ import { createPaymentSession } from "@/lib/paymentSessions";
 import { normalizeNotifySlug } from "@/lib/notifySlug";
 
 const MAX_BAHT = 999_999;
+const MIN_BAHT = 10;
 
 export async function POST(req: Request) {
   let body: unknown;
@@ -16,7 +17,7 @@ export async function POST(req: Request) {
     ? (body as { amount: number }).amount
     : parseFloat(String((body as { amount?: unknown }).amount));
 
-  if (!Number.isFinite(amount) || amount < 1 || amount > MAX_BAHT) {
+  if (!Number.isFinite(amount) || amount < MIN_BAHT || amount > MAX_BAHT) {
     return NextResponse.json({ error: "invalid_amount" }, { status: 400 });
   }
 

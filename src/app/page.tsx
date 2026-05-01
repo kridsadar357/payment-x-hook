@@ -226,6 +226,25 @@ function PaymentsPageInner() {
     setPaidAtText(null);
   }, []);
 
+  /** ผู้ใช้กดย้อนกลับเลือกยอดใหม่ก่อนจ่ายจริง -> ยกเลิก session ปัจจุบันทิ้ง (ห้ามนำกลับมาใช้) */
+  const handleSelectNewAmount = useCallback(async () => {
+    const sessionIdToCancel = paySessionId;
+    const shouldCancel = !!sessionIdToCancel && !paidSuccess;
+    try {
+      if (shouldCancel) {
+        await fetch("/api/payments/session/cancel", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sessionId: sessionIdToCancel }),
+        });
+      }
+    } catch {
+      // Ignore cancel transport errors; local UI still resets.
+    } finally {
+      resetToSelectAmount();
+    }
+  }, [paySessionId, paidSuccess, resetToSelectAmount]);
+
   const markPaidSuccess = useCallback((paidAtIso?: string | null) => {
     setPaidSuccess(true);
     setQrDataUrl(null);
@@ -481,23 +500,6 @@ function PaymentsPageInner() {
               </p>
             </div>
           )}
-          {paySessionId && !paidSuccess && (
-            <div className="mt-3 rounded-lg border border-white/5 bg-black/20 px-2 py-2">
-              <p className="text-[9px] font-semibold uppercase tracking-wide text-zinc-500">
-                Session (SMS notify)
-              </p>
-              <div className="mt-1 flex items-center gap-2">
-                <code className="min-w-0 flex-1 truncate font-mono text-[10px] text-zinc-400">{paySessionId}</code>
-                <button
-                  type="button"
-                  onClick={() => void navigator.clipboard.writeText(paySessionId)}
-                  className="shrink-0 rounded-md border border-zinc-600 px-2 py-0.5 text-[10px] font-bold text-zinc-300 hover:bg-white/5"
-                >
-                  คัดลอก
-                </button>
-              </div>
-            </div>
-          )}
         </div>
 
         {!paidSuccess ? (
@@ -663,7 +665,7 @@ function PaymentsPageInner() {
           <div className="mt-4 space-y-2 pb-2">
             <button
               type="button"
-              onClick={resetToSelectAmount}
+              onClick={() => void handleSelectNewAmount()}
               className="w-full rounded-xl border border-zinc-600 bg-zinc-800/50 py-2 text-xs font-bold text-zinc-300 transition hover:bg-zinc-800"
             >
               ← เลือกยอดใหม่
@@ -739,7 +741,7 @@ function PaymentsPageInner() {
             </div>
             <button
               type="button"
-              onClick={resetToSelectAmount}
+              onClick={() => void handleSelectNewAmount()}
               className="mt-6 w-full rounded-xl bg-emerald-400 py-2.5 text-sm font-bold text-zinc-900 shadow-md shadow-emerald-400/20 transition hover:bg-emerald-300"
             >
               ชำระครั้งอื่น / เลือกยอดใหม่
