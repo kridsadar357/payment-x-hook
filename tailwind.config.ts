@@ -34,6 +34,16 @@ const config: Config = {
           "50%": { opacity: "0.85" },
           "100%": { opacity: "0.35" },
         },
+        "pay-receipt-drop": {
+          "0%": { opacity: "0", transform: "translateY(-26px) scale(0.96)" },
+          "55%": { opacity: "1", transform: "translateY(8px) scale(1.01)" },
+          "100%": { opacity: "1", transform: "translateY(0) scale(1)" },
+        },
+        "pay-receipt-shadow": {
+          "0%": { opacity: "0", transform: "translateY(-8px) scale(0.65)" },
+          "60%": { opacity: "0.42", transform: "translateY(2px) scale(1.06)" },
+          "100%": { opacity: "0.3", transform: "translateY(0) scale(1)" },
+        },
       },
       animation: {
         "pay-card-in": "pay-card-in 0.75s cubic-bezier(0.22, 1, 0.36, 1) forwards",
@@ -41,6 +51,8 @@ const config: Config = {
         "pay-orb-2": "pay-orb-2 24s ease-in-out 2.5s infinite",
         "pay-total-glow": "pay-total-glow 3.2s ease-in-out infinite",
         "pay-border-shimmer": "pay-border-shimmer 2.8s ease-in-out infinite",
+        "pay-receipt-drop": "pay-receipt-drop 0.9s cubic-bezier(0.2, 0.9, 0.2, 1.03) both",
+        "pay-receipt-shadow": "pay-receipt-shadow 0.95s ease-out both",
       },
     },
   },

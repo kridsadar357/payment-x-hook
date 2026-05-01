@@ -16,6 +16,7 @@ const payFont = Kanit({
 });
 
 const PRESETS = [50, 100, 200, 500, 1000] as const;
+const MIN_BAHT = 10;
 const MAX_BAHT = 999_999;
 const QR_SIZE = 176;
 const TRANSFER_COUNTDOWN_MS = 150_000;
@@ -40,6 +41,37 @@ function formatBaht(n: number): string {
     minimumFractionDigits: n % 1 === 0 ? 0 : 2,
     maximumFractionDigits: 2,
   }).format(n);
+}
+
+function formatReceiptDatetime(d: Date): string {
+  return new Intl.DateTimeFormat("th-TH", {
+    dateStyle: "medium",
+    timeStyle: "medium",
+  }).format(d);
+}
+
+function playReceiptPrintSfx(): void {
+  const Ctx = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  if (!Ctx) return;
+  const ctx = new Ctx();
+  const now = ctx.currentTime;
+  const hit = (at: number, freq: number, dur: number) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "square";
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0.0001, at);
+    gain.gain.exponentialRampToValueAtTime(0.035, at + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(at);
+    osc.stop(at + dur + 0.01);
+  };
+  hit(now + 0.00, 900, 0.06);
+  hit(now + 0.08, 760, 0.06);
+  hit(now + 0.16, 620, 0.08);
+  window.setTimeout(() => void ctx.close(), 500);
 }
 
 /** แบ่งยอดแสดงผลสองบรรทัดให้ใกล้เคียง mock ใน design */
@@ -133,6 +165,8 @@ function PaymentsPageInner() {
   const [confirmLoading, setConfirmLoading] = useState(false);
   const [paySessionId, setPaySessionId] = useState<string | null>(null);
   const [paidSuccess, setPaidSuccess] = useState(false);
+  const [paidAtText, setPaidAtText] = useState<string | null>(null);
+  const receiptSoundEnabled = process.env.NEXT_PUBLIC_RECEIPT_SOUND === "1";
 
   const digitsOnly = useCallback((s: string) => s.replace(/\D/g, ""), []);
 
@@ -156,7 +190,7 @@ function PaymentsPageInner() {
   const applyNumpadRaw = useCallback((raw: string) => {
     if (raw === "" || raw === ".") return;
     const parsed = parseFloat(raw);
-    if (!Number.isFinite(parsed) || parsed < 1) return;
+    if (!Number.isFinite(parsed) || parsed < MIN_BAHT) return;
     const rounded = Math.round(parsed * 100) / 100;
     if (rounded > MAX_BAHT) return;
     setAmount(rounded);
@@ -189,13 +223,21 @@ function PaymentsPageInner() {
     setConfirmLoading(false);
     setPaySessionId(null);
     setPaidSuccess(false);
+    setPaidAtText(null);
   }, []);
 
-  const markPaidSuccess = useCallback(() => {
+  const markPaidSuccess = useCallback((paidAtIso?: string | null) => {
     setPaidSuccess(true);
     setQrDataUrl(null);
     setQrError(null);
-  }, []);
+    if (receiptSoundEnabled) playReceiptPrintSfx();
+    if (paidAtIso) {
+      const d = new Date(paidAtIso);
+      setPaidAtText(Number.isNaN(d.getTime()) ? formatReceiptDatetime(new Date()) : formatReceiptDatetime(d));
+      return;
+    }
+    setPaidAtText(formatReceiptDatetime(new Date()));
+  }, [receiptSoundEnabled]);
 
   /** หมดเวลาโอน → กลับไปขั้นตอนเลือกยอดอัตโนมัติ */
   useEffect(() => {
@@ -214,10 +256,10 @@ function PaymentsPageInner() {
           cache: "no-store",
         });
         if (!res.ok) return;
-        const data = (await res.json()) as { status?: string };
+        const data = (await res.json()) as { status?: string; paidAt?: string | null };
         if (cancelled) return;
         if (data.status === "paid") {
-          markPaidSuccess();
+          markPaidSuccess(data.paidAt ?? null);
         } else if (data.status === "expired_or_cancelled") {
           resetToSelectAmount();
         }
@@ -237,7 +279,7 @@ function PaymentsPageInner() {
   const handleConfirm = useCallback(async () => {
     if (numpadRaw === "" || numpadRaw === ".") return;
     const parsed = parseFloat(numpadRaw);
-    if (!Number.isFinite(parsed) || parsed < 1) return;
+    if (!Number.isFinite(parsed) || parsed < MIN_BAHT) return;
     const rounded = Math.round(parsed * 100) / 100;
     if (rounded > MAX_BAHT) return;
 
@@ -514,7 +556,7 @@ function PaymentsPageInner() {
             {showSimulatePaidButton && (
               <button
                 type="button"
-                onClick={markPaidSuccess}
+                onClick={() => markPaidSuccess()}
                 className="mt-3 w-full rounded-xl border border-dashed border-amber-400/45 bg-amber-400/10 py-2.5 text-[11px] font-bold text-amber-200/95 transition hover:bg-amber-400/15"
               >
                 จำลองชำระสำเร็จ (ทดสอบ)
@@ -561,10 +603,11 @@ function PaymentsPageInner() {
                 <p className="mt-0.5 text-right text-[10px] text-zinc-500">
                   {numpadRaw !== "" &&
                   !Number.isNaN(parseFloat(numpadRaw)) &&
-                  parseFloat(numpadRaw) >= 1
+                  parseFloat(numpadRaw) >= MIN_BAHT
                     ? formatBaht(Math.round(parseFloat(numpadRaw) * 100) / 100)
                     : "—"}
                 </p>
+                <p className="mt-0.5 text-right text-[9px] text-zinc-600">ขั้นต่ำ {formatBaht(MIN_BAHT)}</p>
               </div>
               <div className="grid grid-cols-3 gap-1.5">
                 {NUMPAD_KEYS.flatMap((row) =>
@@ -600,7 +643,7 @@ function PaymentsPageInner() {
                 confirmLoading ||
                 numpadRaw === "" ||
                 Number.isNaN(parseFloat(numpadRaw)) ||
-                parseFloat(numpadRaw) < 1
+                parseFloat(numpadRaw) < MIN_BAHT
               }
               onClick={() => void handleConfirm()}
               className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-400 py-2.5 text-sm font-bold text-zinc-900 shadow-md shadow-emerald-400/15 transition-all duration-300 hover:bg-emerald-300 motion-safe:hover:scale-[1.02] motion-safe:hover:shadow-lg motion-safe:hover:shadow-emerald-400/30 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100 disabled:active:scale-100 disabled:hover:shadow-md"
@@ -649,6 +692,50 @@ function PaymentsPageInner() {
               <p className="mt-3 max-w-[16rem] text-[11px] leading-relaxed text-zinc-500">
                 สามารถเริ่มชาร์จได้ตามปกติ — ขอบคุณที่ใช้บริการ
               </p>
+
+              <div className="mt-5 w-full max-w-[19rem]">
+                <div className="mx-auto h-4 w-[88%] rounded-t-xl border border-white/10 bg-zinc-900/80 shadow-inner shadow-black/60">
+                  <div className="mx-auto mt-1 h-1.5 w-[78%] rounded-full bg-black/70" />
+                </div>
+                <div className="relative">
+                  <div
+                    className={
+                      "receipt-paper-texture relative z-10 mx-auto w-full overflow-hidden rounded-2xl border border-zinc-300/40 bg-zinc-50 px-4 py-3 text-left shadow-xl shadow-black/35 " +
+                      "motion-safe:animate-pay-receipt-drop motion-reduce:animate-none"
+                    }
+                  >
+                    <div className="pointer-events-none absolute -top-2 left-0 right-0 flex justify-between px-3" aria-hidden>
+                      <span className="h-3 w-3 rounded-full bg-zinc-950/80" />
+                      <span className="h-3 w-3 rounded-full bg-zinc-950/80" />
+                    </div>
+                    <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-500">Receipt</p>
+                    <div className="mt-2 space-y-1.5 font-mono text-[11px] text-zinc-700">
+                      <div className="flex items-center justify-between gap-3 border-b border-dashed border-zinc-300 pb-1">
+                        <span>AMOUNT</span>
+                        <span className="font-extrabold text-zinc-900">{formatBaht(lockedAmount ?? amount)}</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-3 border-b border-dashed border-zinc-300 pb-1">
+                        <span>SESSION</span>
+                        <span className="max-w-[11rem] truncate text-right">{paySessionId ?? "-"}</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <span>PAID AT</span>
+                        <span>{paidAtText ?? "-"}</span>
+                      </div>
+                    </div>
+                    <p className="mt-2 border-t border-dashed border-zinc-300 pt-2 text-center text-[10px] font-semibold uppercase tracking-wider text-emerald-600">
+                      Payment Completed
+                    </p>
+                  </div>
+                  <div
+                    className={
+                      "pointer-events-none absolute left-6 right-6 top-full h-5 rounded-[999px] bg-black/55 blur-md " +
+                      "motion-safe:animate-pay-receipt-shadow motion-reduce:animate-none"
+                    }
+                    aria-hidden
+                  />
+                </div>
+              </div>
             </div>
             <button
               type="button"

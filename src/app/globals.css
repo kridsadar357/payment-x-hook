@@ -22,3 +22,11 @@ body {
     linear-gradient(to bottom right, #fff7ed, #fef3c7, #fce7f3);
   background-size: 96px 96px, auto, auto, auto;
 }
+
+/* light thermal-paper texture for floating receipt */
+.receipt-paper-texture {
+  background-image:
+    radial-gradient(circle at 1px 1px, rgba(24, 24, 27, 0.06) 1px, transparent 0),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.9));
+  background-size: 6px 6px, auto;
+}
